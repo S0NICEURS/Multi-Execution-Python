@@ -141,7 +141,7 @@ def select_shortcut(py_file, shortcut_name):
     batch_text.insert("1.0", f"@echo off\npython \"{py_file}\"")
     batch_text.pack(pady=5)
 
-    edit_batch_button = Button(current_frame, text="Edit Batch Script", command=lambda bt=batch_text: open_batch_editor(bt), fg='dark blue', font=('Arial', 12))
+    edit_batch_button = Button(current_frame, text="Load Batch Script", command=lambda bt=batch_text: load_batch_script(bt), fg='dark blue', font=('Arial', 12))
     edit_batch_button.pack(pady=5)
 
     execute_button = Button(current_frame, text="Execute", command=lambda pf=py_file: execute_py_file(pf), fg='dark blue', font=('Arial', 12))
@@ -149,6 +149,15 @@ def select_shortcut(py_file, shortcut_name):
 
     # Afficher le bouton "Return to Selection" après avoir changé de cadre
     show_return_button()
+
+# Fonction pour charger un script batch existant
+def load_batch_script(batch_text):
+    batch_file = filedialog.askopenfilename(filetypes=[("Batch files", "*.bat")])
+    if batch_file:
+        with open(batch_file, 'r') as f:
+            batch_content = f.read()
+            batch_text.delete("1.0", END)
+            batch_text.insert("1.0", batch_content)
 
 # Fonction pour afficher le cadre principal (page d'accueil)
 def show_home_frame():

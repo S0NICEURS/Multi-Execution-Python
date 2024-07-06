@@ -3,31 +3,51 @@ import subprocess
 import json
 from tkinter import *
 from tkinter import filedialog
-import psutil  # Ajout de psutil pour gérer les processus
+import psutil
 
-# Chemin du fichier de sauvegarde
-save_file_path = "saved_shortcuts.json"
+# Dossier pour stocker les sauvegardes
+save_folder = "saved_shortcuts"
+if not os.path.exists(save_folder):
+    os.makedirs(save_folder)
 
-# Liste pour stocker les informations sur les raccourcis créés
-shortcuts = []
+# Fonction pour charger les données sauvegardées pour un raccourci spécifique
+def load_shortcut_data(shortcut_name):
+    shortcut_file = os.path.join(save_folder, f"{shortcut_name}.json")
+    if os.path.exists(shortcut_file):
+        with open(shortcut_file, 'r') as f:
+            return json.load(f)
+    return {}
 
-# Charger les données sauvegardées s'il y en a
-def load_saved_data():
+# Fonction pour sauvegarder les données pour un raccourci spécifique
+def save_shortcut_data(shortcut_name, data):
+    shortcut_file = os.path.join(save_folder, f"{shortcut_name}.json")
+    with open(shortcut_file, 'w') as f:
+        json.dump(data, f)
+
+# Fonction pour charger toutes les données sauvegardées au démarrage
+def load_all_saved_data():
     global shortcuts
-    if os.path.exists(save_file_path):
-        with open(save_file_path, 'r') as f:
-            saved_data = json.load(f)
-            shortcuts = saved_data.get('shortcuts', [])
+    shortcuts = []
 
-# Sauvegarder les données à la fermeture de l'application
-def save_data_on_exit():
-    data_to_save = {'shortcuts': shortcuts}
-    with open(save_file_path, 'w') as f:
-        json.dump(data_to_save, f)
+    for file_name in os.listdir(save_folder):
+        if file_name.endswith(".json"):
+            shortcut_name = os.path.splitext(file_name)[0]
+            shortcut_data = load_shortcut_data(shortcut_name)
+            if 'py_file' in shortcut_data and 'batch_content' in shortcut_data:
+                shortcuts.append((shortcut_data['py_file'], shortcut_name, shortcut_data['batch_content']))
+
+# Fonction pour sauvegarder les données à la fermeture de l'application
+def save_all_data_on_exit():
+    for py_file, shortcut_name, batch_content in shortcuts:
+        shortcut_data = {
+            'py_file': py_file,
+            'batch_content': batch_content
+        }
+        save_shortcut_data(shortcut_name, shortcut_data)
 
 # Fonction pour quitter l'application
 def quit_application():
-    save_data_on_exit()
+    save_all_data_on_exit()
     main_window.destroy()
 
 # Fonction pour réduire la fenêtre CMD lors de l'exécution du fichier .py
@@ -102,7 +122,7 @@ def select_py_file_and_create_shortcut():
 # Fonction pour créer un raccourci sur la page d'accueil
 def create_shortcut(py_file):
     shortcut_name = os.path.basename(py_file)
-    shortcuts.append((py_file, shortcut_name))
+    shortcuts.append((py_file, shortcut_name, ""))  # Ajout d'une chaîne vide pour le contenu du script batch initial
 
     refresh_home_frame()
 
@@ -110,7 +130,7 @@ def create_shortcut(py_file):
 def refresh_home_frame():
     clear_current_frame()
 
-    for py_file, shortcut_name in shortcuts:
+    for py_file, shortcut_name, _ in shortcuts:
         shortcut_frame = Frame(current_frame, bg='#312b41')
         shortcut_frame.pack(pady=10, padx=10, fill=X)
 
@@ -141,7 +161,7 @@ def select_shortcut(py_file, shortcut_name):
     batch_text.insert("1.0", f"@echo off\npython \"{py_file}\"")
     batch_text.pack(pady=5)
 
-    edit_batch_button = Button(current_frame, text="Load Batch Script", command=lambda bt=batch_text: load_batch_script(bt), fg='dark blue', font=('Arial', 12))
+    edit_batch_button = Button(current_frame, text="Load Batch Script", command=lambda bt=batch_text: load_batch_script(bt, shortcut_name), fg='dark blue', font=('Arial', 12))
     edit_batch_button.pack(pady=5)
 
     execute_button = Button(current_frame, text="Execute", command=lambda pf=py_file: execute_py_file(pf), fg='dark blue', font=('Arial', 12))
@@ -151,13 +171,21 @@ def select_shortcut(py_file, shortcut_name):
     show_return_button()
 
 # Fonction pour charger un script batch existant
-def load_batch_script(batch_text):
+def load_batch_script(batch_text, shortcut_name):
     batch_file = filedialog.askopenfilename(filetypes=[("Batch files", "*.bat")])
     if batch_file:
         with open(batch_file, 'r') as f:
             batch_content = f.read()
             batch_text.delete("1.0", END)
             batch_text.insert("1.0", batch_content)
+            update_shortcut_data(shortcut_name, batch_content)
+
+# Fonction pour mettre à jour les données d'un raccourci avec le contenu du script batch
+def update_shortcut_data(shortcut_name, batch_content):
+    for i, (py_file, name, _) in enumerate(shortcuts):
+        if name == shortcut_name:
+            shortcuts[i] = (py_file, shortcut_name, batch_content)
+            break
 
 # Fonction pour afficher le cadre principal (page d'accueil)
 def show_home_frame():
@@ -177,39 +205,21 @@ def hide_return_button():
 def save_renamed_shortcut(rename_entry, current_name):
     new_name = rename_entry.get()
     if new_name.strip() and new_name != current_name:
-        for i, (py_file, shortcut_name) in enumerate(shortcuts):
+        for i, (py_file, shortcut_name, batch_content) in enumerate(shortcuts):
             if shortcut_name == current_name:
-                shortcuts[i] = (py_file, new_name)
+                update_shortcut_data(current_name, batch_content)  # Mettre à jour le contenu du script batch
+                shortcuts[i] = (py_file, new_name, batch_content)
                 refresh_home_frame()
                 break
 
 # Fonction pour supprimer un raccourci
 def delete_shortcut(shortcut_name):
     global shortcuts
-    for i, (py_file, name) in enumerate(shortcuts):
+    for i, (py_file, name, _) in enumerate(shortcuts):
         if name == shortcut_name:
             del shortcuts[i]
             break
     refresh_home_frame()
-
-# Fonction pour ouvrir l'éditeur batch
-def open_batch_editor(batch_text):
-    batch_content = batch_text.get("1.0", END)
-    editor = Toplevel()
-    editor.title("Batch Editor")
-    editor.geometry("400x300")
-    text_editor = Text(editor, font=('Arial', 12))
-    text_editor.pack(expand=1, fill=BOTH)
-    text_editor.insert("1.0", batch_content)
-
-    def save_batch():
-        new_batch_content = text_editor.get("1.0", END)
-        batch_text.delete("1.0", END)
-        batch_text.insert("1.0", new_batch_content)
-        editor.destroy()
-
-    save_button = Button(editor, text="Save", command=save_batch, fg='dark blue', font=('Arial', 14, 'bold'))
-    save_button.pack(pady=10)
 
 # Fonction pour effacer le cadre actuel
 def clear_current_frame():
@@ -225,7 +235,7 @@ close_cmd_button = Button(main_window, text="Close All CMD", command=close_other
 close_cmd_button.pack(side=BOTTOM, pady=10)
 
 # Charger les données sauvegardées au démarrage
-load_saved_data()
+load_all_saved_data()
 
 # Afficher les raccourcis existants sur la page d'accueil au démarrage
 refresh_home_frame()

@@ -1,5 +1,4 @@
 
-# [Download](https://gith](https://github.com/S0NICEURS/Multi-Execution-Python/releases/download/v1/Multi.Execution.Pyhton.exe))
 ### Tool for run apps pyhton code
 ### multi execution + script batch / .bat and clear CMD 
 ### it reduces cmds as soon as it opens
